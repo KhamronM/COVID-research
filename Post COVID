@@ -1,0 +1,625 @@
+####
+library(tidyverse)
+
+# Used for skewness and kurtosis
+library(e1071)
+
+# Used for adding info about diagnostics to a model
+library(broom)
+library(MASS) # For the studies function
+
+# Used for VIF
+library(car)
+
+# Used for partial correlation
+library(ppcor)
+
+library("gmodels")
+library("car")
+library("DescTools")
+library("ggplot2")
+library("qqplotr")
+library("dplyr")
+library(stats)
+library(tableone)
+library(nnet)
+library(car)
+library(readxl)
+
+PulmRehabHospitalizedNew <- read_excel("Desktop/PR Manuscript/PulmRehabHospitalizedNew.xlsx")
+View(PulmRehabHospitalizedNew)
+
+pulmrehab.df <- data.frame(PulmRehabHospitalizedNew)
+
+PR.df <- subset(pulmrehab.df, select = -c(MRN,GAD7,
+  PHQ9,Normal,UCSD_MCID,FR,IES6,UCSD_post,
+  UCSD_diff, Trans, Housing, Food, Social,FEV1.FVC,
+   FVC_lessLLN, FEV1_FVC_lessLLN,
+      FVC, LLNFVC, FEV1, LLNFEV1,
+     FEF2575, LLNFEF2575, FEFLLN, TLC,
+ LLNTLC, DLCOunc, LLNDLCOunc, Discharge.on.O2,
+    DLCO.LLN, LLNFEV1_FVC, Zip.code,
+   prehosp.aerosol, Aerosol.inpatient, Aerosolized.outpatient))
+
+
+PR.df$Hospitalized <- ifelse(PR.df$Hospitalized == 0,0,1)
+
+PR.df$RACE_ETH <- as.factor(PR.df$RACE_ETH)
+PR.df$multimorbidity <- as.factor(PR.df$multimorbidity)
+PR.df$Hospitalized <- as.factor(PR.df$Hospitalized)
+PR.df$SixClinImp <- as.factor(PR.df$SixClinImp)
+PR.df$AbnormalLungFunction <- as.factor(PR.df$AbnormalLungFunction)
+
+PRDesc <- CreateTableOne(data = PR.df)
+summary(PRDesc)
+
+############################## cleaning #############################
+
+ggplot(data = PR.df, aes(x = SixMW_pre)) +
+  geom_histogram(binwidth = 100, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+summary(PR.df$SixMW_pre)
+
+Q1pre <- quantile(PR.df$SixMW_pre, 0.25)
+Q3pre <- quantile(PR.df$SixMW_pre, 0.75)
+IQRpre <- Q3pre - Q1pre
+
+lower_boundpre <- Q1pre - 1.5 * IQRpre
+upper_boundpre <- Q3pre + 1.5 * IQRpre
+
+potential_outlierspre <- PR.df$SixMW_pre[PR.df$SixMW_pre < lower_boundpre | 
+                                                  PR.df$SixMW_pre > upper_boundpre]
+potential_outlierspre
+
+clean_data <- PR.df[PR.df$SixMW_pre >= lower_boundpre & 
+                      PR.df$SixMW_pre <= upper_boundpre, ]
+
+clean_data$SixMW_pre[clean_data$SixMW_pre < lower_boundpre] <- lower_boundpre
+clean_data$SixMW_pre[clean_data$SixMW_pre > upper_boundpre] <- upper_boundpre
+
+summary(clean_data$SixMW_pre)
+
+ggplot(data = clean_data, aes(x = SixMW_pre)) +
+  geom_histogram(binwidth = 100, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+
+ggplot(data = PR.df, aes(x = SixMW_post)) +
+  geom_histogram(binwidth = 100, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+
+summary(PR.df$SixMW_post)
+
+Q1post <- quantile(PR.df$SixMW_post, 0.25)
+Q3post <- quantile(PR.df$SixMW_post, 0.75)
+IQRpost <- Q3post - Q1post
+
+lower_boundpost <- Q1post - 1.5 * IQRpost
+upper_boundpost <- Q3post + 1.5 * IQRpost
+
+potential_outlierspost <- PR.df$SixMW_post[PR.df$SixMW_post < lower_boundpost | 
+                                        PR.df$SixMW_post > upper_boundpost]
+potential_outlierspost
+
+clean_data$SixMW_post[clean_data$SixMW_post < lower_boundpost] <- lower_boundpost
+clean_data$SixMW_post[clean_data$SixMW_post > upper_boundpost] <- upper_boundpost
+
+summary(clean_data$SixMW_post)
+
+ggplot(data = clean_data, aes(x = SixMW_post)) +
+  geom_histogram(binwidth = 100, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+ggplot(data = PR.df, aes(x = SixMW_diff)) +
+  geom_histogram(binwidth = 100, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+summary(PR.df$SixMW_diff)
+
+Q1diff <- quantile(PR.df$SixMW_diff, 0.25)
+Q3diff <- quantile(PR.df$SixMW_diff, 0.75)
+IQRdiff <- Q3diff - Q1diff
+
+lower_bounddiff <- Q1diff - 1.5 * IQRdiff
+upper_bounddiff <- Q3diff + 1.5 * IQRdiff
+
+potential_outliersdiff <- PR.df$SixMW_diff[PR.df$SixMW_diff < lower_bounddiff | 
+                                             PR.df$SixMW_diff > upper_bounddiff]
+potential_outliersdiff
+
+clean_data$SixMW_diff[clean_data$SixMW_diff < lower_bounddiff] <- lower_bounddiff
+clean_data$SixMW_diff[clean_data$SixMW_diff > upper_bounddiff] <- upper_bounddiff
+
+summary(clean_data$SixMW_diff)
+
+ggplot(data = PR.df, aes(x = UCSD_pre)) +
+  geom_histogram(binwidth = 5, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+summary(PR.df$UCSD_pre)
+
+Q1UCSD_pre <- quantile(PR.df$UCSD_pre, 0.25)
+Q3UCSD_pre <- quantile(PR.df$UCSD_pre, 0.75)
+IQRUCSD_pre <- Q3UCSD_pre - Q1UCSD_pre
+
+lower_boundUCSD_pre <- Q1UCSD_pre - 1.5 * IQRUCSD_pre
+upper_boundUCSD_pre <- Q3UCSD_pre + 1.5 * IQRUCSD_pre
+
+potential_outliersUCSD_pre <- PR.df$UCSD_pre[PR.df$UCSD_pre < lower_boundUCSD_pre | 
+                                             PR.df$UCSD_pre > upper_boundUCSD_pre]
+potential_outliersUCSD_pre
+
+
+clean_data$UCSD_pre[clean_data$UCSD_pre < lower_boundUCSD_pre] <- lower_boundUCSD_pre
+clean_data$UCSD_pre[clean_data$UCSD_pre > upper_boundUCSD_pre] <- upper_boundUCSD_pre
+
+
+summary(clean_data$UCSD_pre)
+
+
+ggplot(data = PR.df, aes(x = BMI)) +
+  geom_histogram(binwidth = 5, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+summary(PR.df$BMI)
+
+Q1BMI <- quantile(PR.df$BMI, 0.25, TRUE)
+Q3BMI <- quantile(PR.df$BMI, 0.75, TRUE)
+IQRBMI <- Q3BMI - Q1BMI
+
+lower_boundBMI <- Q1BMI - 1.5 * IQRBMI
+upper_boundBMI <- Q3BMI + 1.5 * IQRBMI
+
+potential_outliersBMI <- PR.df$BMI[PR.df$BMI < lower_boundBMI | 
+                                                 PR.df$BMI > upper_boundBMI]
+potential_outliersBMI
+
+clean_data$UCSD_post[clean_data$BMI < lower_boundBMI] <- lower_boundBMI
+clean_data$UCSD_post[clean_data$BMI > upper_boundBMI] <- upper_boundBMI
+
+summary(clean_data$BMI)
+
+
+ggplot(data = PR.df, aes(x = FVCperc)) +
+  geom_histogram(binwidth = .05, fill = "blue", color = "black") +
+  labs(title = "Histogram of Data", x = "Value", y = "Frequency")
+
+summary(PR.df$FVCperc)
+
+Q1FVCperc <- quantile(PR.df$FVCperc, 0.25, TRUE)
+Q3FVCperc <- quantile(PR.df$FVCperc, 0.75, TRUE)
+IQRFVCperc <- Q3FVCperc - Q1FVCperc
+
+lower_boundFVCperc <- Q1FVCperc - 1.5 * IQRFVCperc
+upper_boundFVCperc <- Q3FVCperc + 1.5 * IQRFVCperc
+
+potential_outliersFVCperc <- PR.df$FVCperc[PR.df$FVCperc < lower_boundFVCperc | 
+                                     PR.df$FVCperc > upper_boundFVCperc]
+potential_outliersFVCperc
+
+clean_data$UCSD_post[clean_data$FVCperc < lower_boundFVCperc] <- lower_boundFVCperc
+clean_data$UCSD_post[clean_data$FVCperc > upper_boundFVCperc] <- upper_boundFVCperc
+
+summary(clean_data$FVCperc)
+
+clean_data$Restriction <- cut(clean_data$FVCperc, breaks = c(-Inf, .8, Inf),
+                         labels = c("severe/moderately severe/moderate",
+                                    "mild/normal"))
+
+clean_data$dyspnea <- cut(clean_data$UCSD_pre, breaks = c(-Inf, 34, Inf),
+                     labels = c("mild","moderate/severe"))
+
+clean_data$SixMW30 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 30, Inf),
+                           labels = c("no", "yes"))
+
+clean_data$SixMW35 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 35, Inf),
+                           labels = c("no", "yes"))
+
+clean_data$SixMW40 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 40, Inf),
+                           labels = c("no", "yes"))
+
+clean_data$SixMW45 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 45, Inf),
+                              labels = c("no", "yes"))
+
+clean_data$SixMW50 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 50, Inf),
+                          labels = c("no", "yes"))
+
+clean_data$SixMWATS54 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 54, Inf),
+                            labels = c("nope", "yes"))
+
+clean_data$SixMWATS80 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 80, Inf),
+                           labels = c("no", "yes"))
+
+clean_data$SixMW108 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 108, Inf),
+                       labels = c("no", "yes"))
+
+clean_data$SixMW120 <- cut(clean_data$SixMW_diff, breaks = c(-Inf, 120, Inf),
+                          labels = c("no", "yes"))
+
+
+clean_data$Restriction <- relevel(clean_data$Restriction, ref = "mild/normal")
+
+CleanDesc <- CreateTableOne(data = clean_data)
+summary(CleanDesc)
+
+
+##########################ROC curves ###############################
+
+# Load the pROC package
+library(pROC)
+
+############################ 30 #################################
+
+# Calculate ROC curve
+roc_values6mw30rest <- roc(clean_data$SixMW30, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw30rest, main = "ROC Curve for Restriction using 6MWD", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw30rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw30rest), 2)), col = "blue")
+#####AUC 0.64#############
+
+############################ 35 #################################
+
+# Calculate ROC curve
+roc_values6mw35rest <- roc(clean_data$SixMW35, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw35rest, main = "ROC Curve for Restriction using 6MWD", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw35rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw35rest), 2)), col = "blue")
+
+## AUC 0.64 ##################
+
+###################################### 40 ############################
+# Calculate ROC curve
+roc_values6mw40rest <- roc(clean_data$SixMW40, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw40rest, main = "ROC Curve for Restriction using 6MWD", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw40rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw40rest), 2)), col = "blue")
+
+###########0.67#############
+
+############################# 45 *********** ##########################
+roc_values6mw45rest <- roc(clean_data$SixMW45, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw45rest, main = "ROC Curve for Restriction using 6MWD", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw45rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw45rest), 2)), col = "blue")
+
+############ auc 0.67 ********* ##################
+
+################################## 50 ####################
+
+# Calculate ROC curve
+roc_values6mw50rest <- roc(clean_data$SixMW50, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw50rest, main = "ROC Curve for Restriction using 6MWD", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw50rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw50rest), 2)), col = "blue")
+
+####### 0.58 ###############
+
+
+################################### 54 ###################
+# Calculate ROC curve
+roc_values6mw54rest <- roc(clean_data$SixMWATS54, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw54rest, main = "ROC Curve for Restriction using 6MWD 54", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw54rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw54rest), 2)), col = "blue")
+
+#AUC 0.58###
+
+################################# 80 ####################################
+
+# Calculate ROC curve
+roc_values6mw80rest <- roc(clean_data$SixMWATS80, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw80rest, main = "ROC Curve for Restriction using 6MWD upper", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw80rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw80rest), 2)), col = "blue")
+
+###########AUC 0.55###########
+
+############################# 108 ###################
+
+# Calculate ROC curve
+roc_values6M108Rest <- roc(clean_data$SixMW108, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6M108Rest, main = "ROC Curve for restriction using 6MWD 108", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6M108Rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6M108Rest), 2)), col = "blue")
+
+####AUC 0.57#############
+
+
+################################## 120 ##########################
+# Calculate ROC curve
+roc_values6mw120rest <- roc(clean_data$SixMW120, clean_data$FVCperc)
+
+# Plot ROC curve
+plot(roc_values6mw120rest, main = "ROC Curve for restriction using 6MWD 120", col = "blue")
+
+# Find optimal cutpoint for maximizing sensitivity and specificity
+coords <- coords(roc_values6mw120rest, x = "best", input = "threshold", best.method = "closest.topleft")
+cutpoint <- coords$threshold
+sensitivity <- coords$sensitivity
+specificity <- coords$specificity
+
+# Display the optimal cutpoint on the plot
+abline(v = cutpoint, col = "red")
+text(cutpoint + 0.05, 0.5, paste("Cutpoint =", round(cutpoint, 2)), col = "red")
+
+# Display sensitivity and specificity values at the optimal cutpoint
+text(cutpoint + 0.05, 0.6, paste("Sensitivity =", round(sensitivity, 2)), col = "red")
+text(cutpoint + 0.05, 0.7, paste("Specificity =", round(specificity, 2)), col = "red")
+
+# Adding AUC value to the plot
+text(0.8, 0.2, paste("AUC =", round(auc(roc_values6mw120rest), 2)), col = "blue")
+
+#########0.54#######################
+
+########################### MULTIVARIATE ANALYSIS #######################
+#logistic
+library(broom.mixed)
+
+
+####################### 45 logistic ##########################
+SixMW45Full<- glm(factor(SixMW45) ~ AGE+RACE_ETH +GENDER
+                    +BMI+dyspnea+Restriction+Hospitalized+multimorbidity,
+                    data=clean_data,na.action = na.exclude,
+                    family = binomial(link = "logit"))
+summary(SixMW45Full)
+
+
+SixMW45Fullres <- tidy(SixMW45Full,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+SixMW45Fullres
+
+########################### 54m  ####################################
+SixMW54full<- glm(factor(SixMWATS54) ~ AGE+RACE_ETH + GENDER
+                    +BMI+dyspnea+Restriction+Hospitalized+multimorbidity,
+                    data=clean_data, family = binomial(link = "logit"))
+
+summary(SixMW54full)
+
+Six54res <- tidy(SixMW54full,conf.int=TRUE,exponentiate=TRUE)
+Six54res
+
+
+############################## 80m ##############################
+SixMW80Full <- glm(factor(SixMWATS80) ~ AGE+RACE_ETH + GENDER
+                   +BMI+dyspnea+Restriction+Hospitalized+multimorbidity,
+                   data=clean_data, family = binomial(link = "logit"))
+
+summary(SixMW80Full)
+
+SixMW80res <- tidy(SixMW80Full,conf.int=TRUE,exponentiate=TRUE)
+SixMW80res
+
+################### linear - 6MWD difference ##########################
+
+SMDiffLinRFULL <- lm(SixMW_diff ~ AGE+BMI + GENDER + RACE_ETH+
+                    Restriction+dyspnea+multimorbidity+Hospitalized,
+                  data=clean_data)
+
+summary(SMDiffLinRFULL)
+
+SixDiffres <- tidy(SMDiffLinRFULL,conf.int=TRUE,exponentiate=TRUE)
+SixDiffres
+
+######################### Six MW Post by pre #######################
+
+SMPostLinFULL <- lm(SixMW_post ~ SixMW_pre+ AGE*BMI + GENDER + RACE_ETH+
+                    Restriction+dyspnea+multimorbidity+Hospitalized,
+                  data=clean_data)
+
+summary(SMPostLinFULL)
+
+Sixpostres <- tidy(SMPostLinFULL,conf.int=TRUE,exponentiate=TRUE)
+Sixpostres
+
+###### without abnormal lung function ######
+
+SMPostLinFULL <- lm(SixMW_post ~ SixMW_pre+ AGE*BMI + GENDER + RACE_ETH+
+                      Restriction+dyspnea+multimorbidity+Hospitalized,
+                    data=clean_data)
+
+summary(SMPostLinFULL)
+
+Sixpostres <- tidy(SMPostLinFULL,conf.int=TRUE,exponentiate=TRUE)
+Sixpostres
+
+
+########################### figures ##########################
+
+clean_data$RACE_ETH <- factor(clean_data$RACE_ETH, levels = c("0", "1", "2"),
+  labels = c("non-hispanic white", "non-hispanic black", "hispanic/latino"))
+
+clean_data$multimorbidity <- factor(clean_data$multimorbidity, 
+                                    levels = c("0","1"),
+                                    labels = c("<=1 comorbidity","multimorbidity"))
+
+
+counts <- table(clean_data$SixMWATS80,clean_data$RACE_ETH)
+barplot(counts, main="6MWD MCID 80m by Race and Ethnicity", ylab = "# of subjects (n)",
+        xlab="Race", col=c("darkblue","red"),
+        beside=TRUE, legend = rownames(counts), ylim = c(0,40))
+
+
+DiffbyRace <- ggplot(clean_data, aes_string(x = "SixMW_diff", y = "RACE_ETH", group = "RACE_ETH", fill = "RACE_ETH")) +
+  geom_errorbar(stat = "summary", fun.data = "mean_sdl", width = 0.5) +
+  geom_boxplot(fill = "light blue") +
+  stat_summary(fun = mean, geom = "point", shape = 10, size = 2, color = "black") +
+  ggtitle("6MWD difference by Race and Ethnicity") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  coord_flip()
+
+print(DiffbyRace)
+
+
+PrePRbyRace <- ggplot(clean_data, aes(x = SixMW_pre, y = RACE_ETH, fill = RACE_ETH)) +
+  stat_boxplot(geom ="errorbar", width = 0.5) +
+  geom_boxplot(fill = "light blue") + 
+  stat_summary(fun=mean(clean_data$SixMW_pre), 
+               geom="point", shape=10, size=2, color="black") + 
+  ggtitle("6MWD pre-PR by Race and Ethnicity") + 
+  theme_bw() + theme(legend.position="none")+ 
+  coord_flip()
+
+print(PrePRbyRace)
+
+
+PostPRbyRace <- ggplot(clean_data, aes(x = SixMW_post, y = RACE_ETH, fill = RACE_ETH)) +
+  stat_boxplot(geom ="errorbar", width = 0.5) +
+  geom_boxplot(fill = "light blue") + 
+  stat_summary(fun=median(clean_data$SixMW_post), 
+               geom="point", shape=10, size=2, color="black") + 
+  ggtitle("6MWD post-PR by Race and Ethnicity") + 
+  theme_bw() +theme(legend.position = "none") + coord_flip()
+
+print(PostPRbyRace)
+
+
+clean_data_filtered <- clean_data[!is.na(clean_data$Restriction), ]
+
+PostbyRest <- ggplot(clean_data_filtered, aes_string(x = "SixMW_post", y = "Restriction", group = "Restriction", fill = "Restriction")) +
+  geom_errorbar(stat = "summary", fun.data = "mean_sdl", width = 0.5) +
+  geom_boxplot(fill = "light blue") +
+  stat_summary(fun = mean, geom = "line", shape = 10, size = 2, color = "black") +
+  ggtitle("6MWD difference by Restriction") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  coord_flip()
+
+print(PostbyRest)
